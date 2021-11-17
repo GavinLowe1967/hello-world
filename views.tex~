@@ -1,0 +1,173 @@
+
+\section{Choosing the views}
+
+Say that a process state $cs(ps)$ \emph{references} a component~$cpt$ if
+$id(cpt) \in ps$. 
+
+Given a state $s = (\srv, \cpt)$ with $cpt \in \cpt$, let $\cpt' \subseteq
+\cpt$ be all components in $\cpt$ that are referenced by $cpt$ (including $cpt$
+itself).  We define a corresponding view to be $(\srv, \cpt')$.  Write this as
+$view(s, cpt)$.  Say that $cpt$ is the principal component of this view. 
+
+Given a state $s = (\srv, \cpt)$, let $\cpt' \subseteq
+\cpt$ be all components with identity referenced by some server in
+$\srv$.  We define a corresponding view to be $(\srv, \cpt')$.
+Write this as $srvView(s)$.
+
+Let 
+\begin{eqnarray*}
+\V & = & 
+  \set{view(s, cpt) | s \in \S, cpt \in s.\cpt} \union 
+  \set{srvView(s) | s \in \S}.
+\end{eqnarray*}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Calculating abstract transitions}
+
+The critical thing, then, is, given $V \subseteq \V$, to calculate
+\begin{eqnarray*}
+aPost(V) & = & \alpha(post(\gamma(V)))
+\end{eqnarray*}
+efficiently.  It's enough to consider new such views, i.e.~those not in~$V$. 
+
+I think it's useful to assume that every transition includes precisely one
+\emph{active process}, either a component or a server.  For the moment, let's
+consider only active components. 
+
+Consider first a new view $view(s', cpt)$ where $cpt$ was the active process in
+the corresponding transition.  Consider a transition
+\[
+\gamma(V) \ni s \trans{a} s' \sqge view(s', cpt)
+\]
+
+Strategy: enumerate various ways of getting new views, and show these are
+sufficient. 
+
+%% Consider $s \in \gamma(V)$.
+%% a particular transition $\gamma(V) \ni s \trans{a} s'$.  We show how
+%% to simulate the transition using bounded-size concretizations
+
+We begin by describing how to capture the concrete transitions corresponding
+to the abstract transitions; we then describe how to extract the new views. 
+
+Consider a particular component view $v \in V$ whose principal component is an
+active component.  Let $cpt$ be the principal component.  Consider each local
+transition from state $cpt$ that is compatible with the remainder of~$v$,
+i.e.~each local transition $cpt \trans{a} cpt'$ such that: if $a$ is in the
+alphabet of the servers, then $v.\srv \trans{a}$; and similarly, for each
+other component~$c$ in~$v.\cpt$, if $a$ is in $c$'s alphabet than $c
+\trans{a}$.
+
+Consider the other components (outside~$v$) that synchronise on this
+transition (if any).  Suppose the components have identities~$id_1, \ldots,
+id_n$ (with $n \ge 0$).  Find all states $c_1, \ldots, c_n$ for those
+components that are compatible with~$v$, i.e.\ such that $conc \in \gamma(V)$
+where $conc = v \uplus \set{c_1,\ldots,c_n}$.  Then test whether $conc$ can
+also perform~$a$ (i.e.~whether each of $c_1,\ldots, c_n$ can).  If so, $conc
+\trans{a} conc'$ for some~$conc'$.  The lemma below describes how this
+captures relevant concrete transitions.
+
+
+
+\begin{lemma}
+If \( \gamma(V) \ni s \trans{a} s' \), then the above construction produces a
+transition $conc \trans{a} conc'$ where for some set $cpts$ of component
+states, $s = conc \uplus cpts$ and $s' = conc' \uplus cpts$.
+\end{lemma}
+%
+\begin{proof}
+Let $cpt$ be the active component in the transition $s \trans{a} s'$.  Take $v
+= view(s, cpt)$.  Then the above construction produces a suitable transition
+between concretizations, where $conc \sqle s$ is the extension of~$v$ with the
+other synchronising components.  The assumption $s \in \gamma(V)$ means that
+$conc \in \gamma(V)$.  The set $cpts$ is then just the remaining components
+from~$s$, which do not participate in the transition.
+\end{proof}
+
+
+\textbf{Observation.} In most cases, all the components that synchronise on
+the transition will already be in the view~$v$; i.e.~we have $n = 0$ above.
+For example, if a thread has a reference to a node~$curr$, and performs $nxt =
+curr.next$, this will represent a synchronisation between the thread
+and~$curr$, both of which are in the view.  An exception will be where the
+thread allocates a new node, which will be a synchronisation between the
+thread and a node to which it doesn't have a reference.  I can't think of any
+case where $n > 1$.
+
+%%%%%
+
+%% \begin{itemize}
+%% \item Case each such other component is in $\cpt$.  Then this transition is
+%%   available from~$v$.  I.e. $v \trans{a} v'$ for some~$v'$.
+
+%% \item Case there is one other such component, with identity~$id_c$.  Find all
+%%   states~$c$ of that component that are compatible with~$v$, i.e.~such that
+%%   $\alpha(\srv, \cpt \union \set{c}) \subseteq V$ (equivalently $(\srv, \cpt
+%%   \union \set{c}) \in \gamma(V)$).  Let $\hat{v} = (\srv, \cpt \union
+%%   \set{c})$.  Then $\hat{v} \trans{a} v'$ for some~$v'$.
+
+%% \item If there are more than one such component, this generalises in the
+%%   obvious way.  I think this is quite rare, and we might not support it. 
+%% \end{itemize}
+
+For each transition $conc \trans{a} conc'$ produced by the above process, we
+then form new views compatible with~$conc'$.  It's enough to do this for the
+components and servers that change state in the transition.  Consider one such
+component $cpt_1$ that undergoes the local transition $cpt_1 \trans{a}
+cpt_1'$.
+%
+\begin{itemize}
+\item Consider first views for $cpt_1'$ in the subsequent state.  Note that
+  $cpt_1'$ might hold references to other components that are not in $conc$
+  (and $conc'$).  Suppose those references are to components with
+  identities~$id_1, \ldots, id_n$ (with $n \ge 0$).  Find all states $c_1,
+  \ldots, c_n$ for those components that are compatible with~$conc$, i.e.~such
+  that $conc_1 \in \gamma(V)$ where $conc_1 = conc \uplus
+  \set{c_1,\ldots,c_n}$.  Then let $conc_1' = conc' \uplus
+  \set{c_1,\ldots,c_n}$.  So $conc_1 \trans{a} conc_1'$.  Calculate
+  $view(conc_1', cpt_1')$.
+
+
+\item We now consider server views in the subsequent state.  Suppose
+  $conc'.\srv$ holds references to components with identities~$id_1, \ldots,
+  id_n$ that are not in $conc$ (with $n \ge 0$).  Find all states $c_1,
+  \ldots, c_n$ for those components that are compatible with~$conc$, i.e.~such
+  that $conc_1 \in \gamma(V)$ where $conc_1 = conc \uplus
+  \set{c_1,\ldots,c_n}$. Then let $conc_1' = conc' \uplus
+  \set{c_1,\ldots,c_n}$.  So $conc_1 \trans{a} conc_1'$.  Calculate
+  $srvView(conc_1')$.
+
+\item References to $cpt_1$ from other components or servers.
+
+\end{itemize}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Previous version}
+
+Consider the other components that are involved in this
+transition or that $cpt'$ has a reference to (possibly none).
+%
+\begin{itemize}
+\item Case each such other component is in $\cpt$.  Then this transition is
+  available from~$v$.  So consider all such transitions $v \trans{a} v'$, and
+  calculate all $view(v', cpt')$.
+
+\item Case there is one other such component, with identity~$id_c$, and it is
+  referenced from~$v$.  Find all states of that component that are compatible
+  with $v$: if $id_c$ is referenced by $\srv$, then there is a server-centric
+  view for $\srv$ compatible with the state (and relevant other components in
+  $\cpt$); and if another component has a reference to it, there is a
+  component-centric view for that component that has a reference to it.  
+
+\end{itemize}
+
+The above suggests the following definition.  Given a set of views~$V$, view
+$v = (\srv, \cpt)$ and a component identity~$id$.  The extension of $v$ with
+$id$ is all states $(\srv, \cpt \union \set{cpt}) \in \gamma(V)$ such that
+$cpt$ has identity id.  (Does $\gamma$ give a set of states, or can it include
+substates?) 
+
